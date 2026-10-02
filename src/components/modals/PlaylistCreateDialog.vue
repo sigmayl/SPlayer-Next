@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { ContentScope } from "@/types/collection";
 import { usePlaylistStore } from "@/stores/playlist";
-import { useUserStore } from "@/stores/user";
+import { useOnlineUser } from "@/composables/useOnlineUser";
+import { useStatusStore } from "@/stores/status";
+import type { OnlinePlatform } from "@shared/types/platform";
 import { toast } from "@/composables/useToast";
 
 const props = defineProps<{
@@ -10,6 +12,7 @@ const props = defineProps<{
   mode: ContentScope;
   /** 预填歌单名 */
   initialName?: string;
+  platform?: OnlinePlatform;
 }>();
 const emit = defineEmits<{
   "update:open": [value: boolean];
@@ -19,7 +22,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const playlistStore = usePlaylistStore();
-const userStore = useUserStore();
+const status = useStatusStore();
+const platform = computed(() => props.platform ?? status.onlinePlatform);
+const userStore = useOnlineUser(platform);
 
 const scope = ref<ContentScope>(props.mode);
 const name = ref("");
@@ -52,7 +57,7 @@ const handleConfirm = async (): Promise<void> => {
     if (scope.value === "local") {
       id = (await playlistStore.create(title)).id;
     } else {
-      id = (await userStore.createPlaylist(title, privacy.value)).id;
+      id = (await userStore.value.createPlaylist(title, privacy.value)).id;
     }
     if (!id) {
       toast.error(t("liked.toast.failed"));
@@ -109,7 +114,7 @@ const handleConfirm = async (): Promise<void> => {
               @keyup.enter="handleConfirm"
             />
           </label>
-          <div class="flex items-center gap-2">
+          <div v-if="platform === 'netease'" class="flex items-center gap-2">
             <span class="text-on-surface">{{ t("collection.privacy.private") }}</span>
             <SSwitch
               :model-value="privacy === 10"

@@ -5,7 +5,7 @@ import type {
   ShuffleMode,
   Track,
 } from "@shared/types/player";
-import type { Platform } from "@shared/types/platform";
+import type { OnlinePlatform, Platform } from "@shared/types/platform";
 import type { ContentScope } from "@/types/collection";
 import type { SortField, SortOrder } from "@/types/list";
 import type { PersonalFmOptions } from "@/types/netease";
@@ -17,6 +17,7 @@ export const useStatusStore = defineStore(
   "status",
   () => {
     /** 播放状态 */
+    const onlinePlatform = ref<OnlinePlatform>("netease");
     const state = ref<PlayerState>("idle");
     /** 播放位置 */
     const position = ref(0);
@@ -118,6 +119,7 @@ export const useStatusStore = defineStore(
     };
 
     return {
+      onlinePlatform,
       state,
       position,
       duration,
@@ -172,6 +174,7 @@ export const useStatusStore = defineStore(
         "fmOptions",
         "volume",
         "position",
+        "onlinePlatform",
         "searchPlatform",
         "myPlaylistSource",
         "likedPageTab",

@@ -2,7 +2,8 @@
 defineOptions({ name: "Favorites" });
 
 import type { CoverItem } from "@/types/artist";
-import { useUserStore } from "@/stores/user";
+import { useOnlineUser } from "@/composables/useOnlineUser";
+import { useStatusStore } from "@/stores/status";
 import {
   albumsToCoverItems,
   artistsToCoverItems,
@@ -17,7 +18,8 @@ import IconMaterialSymbolsFavoriteOutline from "~icons/material-symbols/favorite
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
-const user = useUserStore();
+const user = useOnlineUser();
+const status = useStatusStore();
 
 type FavTab = "playlist" | "album" | "artist";
 
@@ -42,15 +44,15 @@ const tabs = computed(() => [
 ]);
 
 const playlistItems = computed<CoverItem[]>(() =>
-  user.subscribedPlaylists.map((pl) => ({
+  user.value.subscribedPlaylists.map((pl) => ({
     ...playlistToCoverItem(pl),
     subtitle: pl.trackCount ? t("common.totalSongs", { count: pl.trackCount }) : "",
   })),
 );
 
-const albumItems = computed<CoverItem[]>(() => albumsToCoverItems(user.albums));
+const albumItems = computed<CoverItem[]>(() => albumsToCoverItems(user.value.albums));
 
-const artistItems = computed<CoverItem[]>(() => artistsToCoverItems(user.artists));
+const artistItems = computed<CoverItem[]>(() => artistsToCoverItems(user.value.artists));
 
 const currentItems = computed<CoverItem[]>(() => {
   if (activeTab.value === "playlist") return playlistItems.value;
@@ -81,9 +83,11 @@ const countMeta = computed(() => {
 
 const handleClick = (item: CoverItem): void => {
   if (activeTab.value === "artist") {
-    router.push(`/artist/netease/${encodeURIComponent(item.id)}`);
+    router.push(`/artist/${status.onlinePlatform}/${encodeURIComponent(item.id)}`);
   } else {
-    router.push(`/collection/netease/${activeTab.value}/${encodeURIComponent(item.id)}`);
+    router.push(
+      `/collection/${status.onlinePlatform}/${activeTab.value}/${encodeURIComponent(item.id)}`,
+    );
   }
 };
 </script>

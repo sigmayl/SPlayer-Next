@@ -1,4 +1,5 @@
-import { useUserStore } from "@/stores/user";
+import { useOnlineUser } from "@/composables/useOnlineUser";
+import { useStatusStore } from "@/stores/status";
 import { useHeartMode } from "@/composables/useHeartMode";
 import { useFmMode } from "@/composables/useFmMode";
 import { toast } from "@/composables/useToast";
@@ -14,13 +15,14 @@ import IconRadio from "~icons/lucide/radio";
 export const useQuickActions = () => {
   const { t } = useI18n();
   const router = useRouter();
-  const user = useUserStore();
+  const user = useOnlineUser();
+  const status = useStatusStore();
   const { enterHeartMode } = useHeartMode();
   const { enterFmMode } = useFmMode();
 
   /** 试试手气 */
   const playLucky = useThrottleFn(async (): Promise<void> => {
-    const online = user.likedPlaylistTracks;
+    const online = user.value.likedPlaylistTracks;
     const countRes = await window.api.library.getTrackCount();
     const hasLocal = (countRes.success ? (countRes.data ?? 0) : 0) > 0;
     const hasOnline = online.length > 0;
@@ -47,32 +49,37 @@ export const useQuickActions = () => {
   const playFm = useThrottleFn(() => enterFmMode(), 800);
 
   /** 快捷入口列表 */
-  const quickActions = computed(() => [
-    {
-      icon: IconDices,
-      title: t("home.quickActions.luck.title"),
-      desc: t("home.quickActions.luck.desc"),
-      run: playLucky,
-    },
-    {
-      icon: IconCalendarDays,
-      title: t("home.quickActions.daily.title"),
-      desc: t("home.quickActions.daily.desc"),
-      run: () => router.push("/daily"),
-    },
-    {
-      icon: IconHeart,
-      title: t("home.quickActions.heartMode.title"),
-      desc: t("home.quickActions.heartMode.desc"),
-      run: playHeartMode,
-    },
-    {
-      icon: IconRadio,
-      title: t("home.quickActions.fm.title"),
-      desc: t("home.quickActions.fm.desc"),
-      run: playFm,
-    },
-  ]);
+  const quickActions = computed(() =>
+    [
+      {
+        icon: IconDices,
+        title: t("home.quickActions.luck.title"),
+        desc: t("home.quickActions.luck.desc"),
+        run: playLucky,
+      },
+      {
+        icon: IconCalendarDays,
+        title: t("home.quickActions.daily.title"),
+        desc: t("home.quickActions.daily.desc"),
+        run: () => router.push("/daily"),
+      },
+      {
+        icon: IconHeart,
+        title: t("home.quickActions.heartMode.title"),
+        desc: t("home.quickActions.heartMode.desc"),
+        run: playHeartMode,
+      },
+      {
+        icon: IconRadio,
+        title: t("home.quickActions.fm.title"),
+        desc: t("home.quickActions.fm.desc"),
+        run: playFm,
+      },
+    ].filter(
+      (item) =>
+        status.onlinePlatform === "netease" || (item.icon !== IconHeart && item.icon !== IconRadio),
+    ),
+  );
 
   return { quickActions };
 };

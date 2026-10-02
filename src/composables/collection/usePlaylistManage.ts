@@ -1,7 +1,7 @@
 import type { Ref } from "vue";
 import type { Collection } from "@/types/collection";
 import { usePlaylistStore } from "@/stores/playlist";
-import { useUserStore } from "@/stores/user";
+import { useOnlineUser } from "@/composables/useOnlineUser";
 import { toast } from "@/composables/useToast";
 
 export interface PlaylistManageOptions {
@@ -24,16 +24,16 @@ export const usePlaylistManage = (
 ) => {
   const { t } = useI18n();
   const playlistStore = usePlaylistStore();
-  const userStore = useUserStore();
+  const userStore = useOnlineUser(() => collection.value?.source);
 
   /** 是否可管理 */
   const canManage = computed(() => {
     const current = collection.value;
     if (!current || current.type !== "playlist") return false;
     if (current.source === "local") return true;
-    if (current.source !== "netease") return false;
-    const isCreated = userStore.createdPlaylists.some((item) => item.id === current.id);
-    const isLiked = userStore.likedPlaylistId === current.id;
+    if (current.source !== "netease" && current.source !== "qqmusic") return false;
+    const isCreated = userStore.value.createdPlaylists.some((item) => item.id === current.id);
+    const isLiked = userStore.value.likedPlaylistId === current.id;
     return isCreated && !isLiked;
   });
 
@@ -64,7 +64,7 @@ export const usePlaylistManage = (
           description: description || undefined,
         });
       } else {
-        await userStore.updatePlaylist(current.id, { name: title, description });
+        await userStore.value.updatePlaylist(current.id, { name: title, description });
       }
       editOpen.value = false;
       options.onEdited?.();
@@ -92,7 +92,7 @@ export const usePlaylistManage = (
       if (current.source === "local") {
         await playlistStore.remove(current.id);
       } else {
-        await userStore.deletePlaylist(current.id);
+        await userStore.value.deletePlaylist(current.id);
       }
       deleteOpen.value = false;
       options.onDeleted?.();

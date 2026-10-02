@@ -5,7 +5,7 @@
  * - 统一走 u.y.qq.com/cgi-bin/musicu.fcg 的 `{ comm, request: {module, method, param} }` 协议
  * - 首次请求前先调 music.getSession.session 拿 uid/sid/userip，缓存 1 小时
  * - 没有加密：API 本身明文 JSON POST，靠 UA + QIMEI36 等 comm 字段伪装客户端
- * - Referer 设为 https://y.qq.com，部分接口会校验
+ * - Referer 保留 https://y.qq.com/ 的末尾斜杠，歌单接口会校验
  */
 
 import { QM_API_URL, QM_HEADERS, SESSION_TTL, getCommonParams } from "./config";
@@ -14,6 +14,7 @@ import {
   getSessionCookies,
   saveSessionCookies,
 } from "@main/database/sessions";
+import { fetchWithProxy, getNetworkProxyUrl } from "@main/utils/proxy";
 import { coreLog } from "@main/utils/logger";
 import { sessionToCookieHeader } from "./credential";
 
@@ -35,6 +36,9 @@ const invalidateSession = (): void => {
   sessionGeneration++;
   session = { expireAt: 0 };
 };
+
+/** 当前凭据代次，隔离账号切换前的缓存与在途请求 */
+export const getQQMusicSessionGeneration = (): number => sessionGeneration;
 
 /** 读取内存或数据库中的 QM cookies */
 export const getQQMusicCookies = (): Record<string, string> => {
@@ -88,6 +92,10 @@ export interface QMRequestOptions {
   auth?: boolean;
   /** 是否允许在收到鉴权错误时自动刷新凭据 */
   autoRefresh?: boolean;
+  /** 写操作不重试网络错误，避免结果不明时重复提交 */
+  write?: boolean;
+  /** Lite 业务使用 mz 入口，登录与原有接口仍走 u 入口 */
+  lite?: boolean;
 }
 
 /** 发起一次 fcg POST */
@@ -95,11 +103,13 @@ const postRaw = async (
   body: unknown,
   extraHeaders?: Record<string, string>,
   useAuth = true,
+  lite = false,
 ): Promise<FcgResponse> => {
   const cookies = useAuth ? getQQMusicCookies() : {};
   const cookieStr = sessionToCookieHeader(cookies);
 
-  const res = await fetch(QM_API_URL, {
+  const request = getNetworkProxyUrl() ? fetchWithProxy : fetch;
+  const res = await request(lite ? "https://mz.y.qq.com/cgi-bin/musicu.fcg" : QM_API_URL, {
     method: "POST",
     headers: {
       ...QM_HEADERS,
@@ -108,7 +118,13 @@ const postRaw = async (
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(8000),
+  }).catch((error: unknown) => {
+    const cause = (error as { cause?: { code?: string; message?: string } }).cause;
+    throw new Error(`QM 网络请求失败: ${cause?.message ?? String(error)}`, {
+      cause: error,
+    });
   });
+  if (!res.ok) throw new Error(`QM HTTP 错误: ${res.status}`);
   return (await res.json()) as FcgResponse;
 };
 
@@ -167,6 +183,8 @@ export const qmRequest = async <T = unknown>(
   param: Record<string, unknown>,
   options: QMRequestOptions = {},
 ): Promise<T> => {
+  let generation = sessionGeneration;
+  const accountUin = getQQMusicUin();
   const useSession = options.session !== false;
   if (useSession) await ensureSession();
 
@@ -196,13 +214,16 @@ export const qmRequest = async <T = unknown>(
   };
 
   let lastErr: unknown;
-  for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
+  const retryLimit = options.write ? 0 : MAX_RETRY;
+  for (let attempt = 0; attempt <= retryLimit; attempt++) {
     try {
+      if (generation !== sessionGeneration) throw new Error("QM 账号会话已变化");
       const comm = buildComm();
       const body = { comm, request: { module, method, param } };
-      const data = await postRaw(body, undefined, useAuth);
-      const outerCode = data.code ?? 0;
-      const innerCode = data.request?.code ?? 0;
+      const data = await postRaw(body, undefined, useAuth, options.lite);
+      if (generation !== sessionGeneration) throw new Error("QM 账号会话已变化");
+      const outerCode = data.code;
+      const innerCode = data.request?.code;
 
       // 遇到鉴权失败或系统拦截错误（1000: 未登录/token失效, 2001: 会话异常）
       const isAuthError =
@@ -219,6 +240,8 @@ export const qmRequest = async <T = unknown>(
 
         const refreshed = await refreshQMCredential();
         if (refreshed) {
+          if (getQQMusicUin() !== accountUin) throw new Error("QM 账号会话已变化");
+          generation = sessionGeneration;
           coreLog.info("[qm-request] 凭据刷新成功，重试当前请求");
           attempt = -1;
           continue;
@@ -231,7 +254,8 @@ export const qmRequest = async <T = unknown>(
       return data.request?.data as T;
     } catch (err) {
       lastErr = err;
-      if (attempt < MAX_RETRY) await delay(RETRY_BACKOFF);
+      if (generation !== sessionGeneration) throw err;
+      if (attempt < retryLimit) await delay(RETRY_BACKOFF);
     }
   }
   throw lastErr;
@@ -260,6 +284,7 @@ interface RefreshCredentialData {
  * 执行 LoginServer.Login（loginMode=2）向服务端请求刷新 musickey
  */
 const performRefreshCredential = async (): Promise<boolean> => {
+  const generation = sessionGeneration;
   const cookies = getQQMusicCookies();
   const uin = getQQMusicUin();
   const musickey = cookies.qm_keyst || cookies.qqmusic_key;
@@ -340,6 +365,7 @@ const performRefreshCredential = async (): Promise<boolean> => {
     // 网页 cookie 无此字段，首次刷新后落库供后续刷新复用
     if (data.refresh_key) refreshed.qm_refresh_key = data.refresh_key;
 
+    if (generation !== sessionGeneration) return false;
     mergeQQMusicCookies(refreshed);
     coreLog.info("[qm-refresh] musickey 刷新成功", { uin });
     return true;
@@ -366,4 +392,18 @@ export const refreshQMCredential = async (): Promise<boolean> => {
     }
   })();
   return refreshPromise;
+};
+
+/** 获取独立 SuperSet 通道的账号与客户端会话，不暴露 authst */
+export const getQQMusicReportSession = async (): Promise<{
+  uin: string;
+  sid: string;
+  generation: number;
+}> => {
+  const generation = sessionGeneration;
+  const uin = getQQMusicUin();
+  await ensureSession();
+  if (generation !== sessionGeneration || uin === "0" || !session.sid)
+    throw new Error("QQ 上报会话不可用");
+  return { uin, sid: session.sid, generation };
 };

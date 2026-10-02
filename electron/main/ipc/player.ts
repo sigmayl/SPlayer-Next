@@ -15,6 +15,7 @@ import { toMs } from "@main/utils/time";
 import * as mediaService from "@main/services/media";
 import * as nowPlaying from "@main/services/nowPlaying";
 import * as lastfm from "@main/services/lastfm";
+import * as qqmusicScrobble from "@main/services/qqmusicScrobble";
 import * as neteaseScrobble from "@main/services/neteaseScrobble";
 import { fetchBytes } from "@main/utils/fetchBytes";
 import { getPlayer, resetPlayer, onPlayerCreated, onPlayerReset } from "@main/services/engine";
@@ -147,6 +148,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         nowPlaying.onPlayStateChange(state);
         lastfm.onState(state === "playing");
         neteaseScrobble.onState(state === "playing");
+        qqmusicScrobble.onState(state === "playing");
         const statusEvent = {
           type: "status",
           data: {
@@ -168,6 +170,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         mediaService.setPlayState({ status: "Paused" });
         lastfm.onEnded();
         neteaseScrobble.onEnded();
+        qqmusicScrobble.onEnded();
         setTaskbarProgress(-1);
         break;
       }
@@ -176,6 +179,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         sendToMain("player:event", { type: "sourceError" });
         mediaService.setPlayState({ status: "Paused" });
         neteaseScrobble.onState(false);
+        qqmusicScrobble.onState(false);
         setTaskbarProgress(-1);
         break;
       }
@@ -314,6 +318,7 @@ const completeTrackLoad = (
     autoPlay,
   });
   neteaseScrobble.onTrackLoaded(authoritative, options.context, durationMs, autoPlay);
+  qqmusicScrobble.onTrackLoaded(authoritative, options.context, durationMs, autoPlay);
   if (coverFetchUrl) {
     void fetchBytes(coverFetchUrl).then((buf) => {
       if (!buf || seq !== loadSeq) return;
@@ -584,6 +589,7 @@ export const registerPlayerIpc = (): void => {
       cancelPendingReinit();
       activeCueRange = null;
       setCurrentTransitionRange();
+      qqmusicScrobble.onEnded();
       getPlayer().stop();
       return { success: true };
     } catch (error) {
@@ -995,7 +1001,15 @@ export const registerPlayerIpc = (): void => {
   };
   powerMonitor.on("resume", resumeHandler);
   // 退出前停止设备监听并释放休眠抑制
-  app.on("before-quit", () => {
+  let reportFlushed = false;
+  app.on("before-quit", (event) => {
+    if (!reportFlushed) {
+      event.preventDefault();
+      void qqmusicScrobble.flush().finally(() => {
+        reportFlushed = true;
+        app.quit();
+      });
+    }
     stopDeviceMonitoring();
     releasePowerBlocker();
   });

@@ -381,7 +381,11 @@ const showComments = (): void => {
               <template #icon><IconLucideMessageCircle /></template>
             </SButton>
             <SButton
-              v-if="displayTrack?.source === 'local' || displayTrack?.source === 'netease'"
+              v-if="
+                displayTrack?.source === 'local' ||
+                displayTrack?.source === 'netease' ||
+                displayTrack?.source === 'qqmusic'
+              "
               type="cover"
               variant="ghost"
               size="large"

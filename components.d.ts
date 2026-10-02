@@ -206,6 +206,7 @@ declare module 'vue' {
     NumberFieldIncrement: typeof import('reka-ui')['NumberFieldIncrement']
     NumberFieldInput: typeof import('reka-ui')['NumberFieldInput']
     NumberFieldRoot: typeof import('reka-ui')['NumberFieldRoot']
+    OnlinePlatformConfig: typeof import('./src/components/settings/custom/OnlinePlatformConfig.vue')['default']
     PlatformAccount: typeof import('./src/components/settings/custom/PlatformAccount.vue')['default']
     PlayerBackground: typeof import('./src/components/player/FullPlayer/PlayerBackground.vue')['default']
     PlayerBar: typeof import('./src/components/player/PlayerBar.vue')['default']

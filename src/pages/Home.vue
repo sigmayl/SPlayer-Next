@@ -10,8 +10,10 @@ import { useQuickActions } from "@/composables/home/useQuickActions";
 import { useHomeDiscover } from "@/composables/home/useHomeDiscover";
 import { useFloatingPlayerBar } from "@/composables/useFloatingPlayerBar";
 import { navigateToPlaylist, navigateToArtist, navigateToAlbum } from "@/utils/navigate";
+import { useStatusStore } from "@/stores/status";
 import * as player from "@/core/player";
 
+const status = useStatusStore();
 const { t } = useI18n();
 const { isFloatingBar } = useFloatingPlayerBar();
 
@@ -62,17 +64,17 @@ const trackNo = (index: number): string => String(index + 1).padStart(2, "0");
 
 /** 打开歌单详情 */
 const openPlaylist = (item: CoverItem): void => {
-  navigateToPlaylist(item.id, { source: "netease", name: item.title });
+  navigateToPlaylist(item.id, { source: status.onlinePlatform, name: item.title });
 };
 
 /** 打开歌手页 */
 const openArtist = (item: CoverItem): void => {
-  navigateToArtist(item.title, { source: "netease", artistId: item.id });
+  navigateToArtist(item.title, { source: status.onlinePlatform, artistId: item.id });
 };
 
 /** 打开专辑页 */
 const openAlbum = (item: CoverItem): void => {
-  navigateToAlbum(item.title, { source: "netease", albumId: item.id });
+  navigateToAlbum(item.title, { source: status.onlinePlatform, albumId: item.id });
 };
 </script>
 

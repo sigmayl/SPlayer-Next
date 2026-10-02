@@ -1,11 +1,12 @@
 <script setup lang="ts">
 defineOptions({ name: "Daily" });
 
-import type { Track } from "@shared/types/player";
+import type { PlaybackContext, Track } from "@shared/types/player";
 import type { SSelectOption } from "@/components/ui/SSelect.vue";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useDataStore } from "@/stores/data";
-import { useUserStore } from "@/stores/user";
+import { useOnlineUser } from "@/composables/useOnlineUser";
+import { useStatusStore } from "@/stores/status";
 import SongList from "@/components/list/SongList.vue";
 import * as player from "@/core/player";
 import IconLucideRefreshCw from "~icons/lucide/refresh-cw";
@@ -13,7 +14,8 @@ import IconLucideListChecks from "~icons/lucide/list-checks";
 
 const { t, locale } = useI18n();
 const data = useDataStore();
-const user = useUserStore();
+const user = useOnlineUser();
+const status = useStatusStore();
 
 /** 一天的视图模型 */
 interface DayView {
@@ -29,7 +31,7 @@ interface DayView {
 
 /** 今日 + 历史的可选天列表（今日在前） */
 const days = computed<DayView[]>(() => {
-  if (!user.isLoggedIn) return [];
+  if (!user.value.isLoggedIn) return [];
   const result: DayView[] = [];
   if (data.dailyRecommend.length > 0) {
     result.push({ key: "today", date: new Date(), tracks: data.dailyRecommend, isToday: true });
@@ -64,9 +66,16 @@ watch(days, (list) => {
 const loading = ref(data.dailyRecommend.length === 0);
 
 /** 播放选中天的全部曲目 */
+const playbackContext = computed<PlaybackContext>(() => ({
+  provider: status.onlinePlatform,
+  originId: "daily",
+  originType: "page",
+  originName: t("daily.title"),
+}));
+
 const handlePlayAll = (): void => {
   const tracks = selectedDay.value?.tracks ?? [];
-  if (tracks.length > 0) player.playFrom(tracks, 0);
+  if (tracks.length > 0) player.playFrom(tracks, 0, playbackContext.value);
 };
 
 /** 按当前语言格式化日期的某个部分 */
@@ -100,8 +109,8 @@ const handleMore = (key: string): void => {
 };
 
 watch(
-  () => user.isLoggedIn,
-  (loggedIn) => {
+  () => [user.value.isLoggedIn, status.onlinePlatform] as const,
+  ([loggedIn]) => {
     if (!loggedIn) {
       loading.value = false;
       return;
@@ -217,7 +226,12 @@ watch(
         :key="selectedDay.key"
         class="min-h-0 flex-1"
       >
-        <SongList ref="songListRef" :items="selectedDay.tracks" source="netease" />
+        <SongList
+          ref="songListRef"
+          :items="selectedDay.tracks"
+          :playback-context="playbackContext"
+          :source="status.onlinePlatform"
+        />
       </div>
       <!-- 加载中 -->
       <div v-else-if="loading" key="loading" class="flex flex-1 items-center justify-center">

@@ -1797,11 +1797,21 @@
       "label": "Use Real IP",
       "description": "May be restricted overseas or in some regions; enable this to try to resolve it"
     },
+    "onlinePlatform": {
+      "netease": "NetEase Cloud Music",
+      "qqmusic": "QQ Music",
+      "label": "Online music platform",
+      "description": "Choose the music platform used for Home, daily recommendations, favorites, and your profile."
+    },
     "kugouLoginVersion": {
       "label": "KG Login Version",
       "description": "Re-login is required after switching",
       "standard": "Standard",
       "concept": "Concept"
+    },
+    "qqmusicScrobbleEnabled": {
+      "label": "QQ Music playback reporting",
+      "description": "Report actual listening time and source when a song ends or changes."
     },
     "neteaseScrobbleEnabled": {
       "label": "Enable scrobble",

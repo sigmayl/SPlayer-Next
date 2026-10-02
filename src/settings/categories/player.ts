@@ -166,6 +166,12 @@ const playerCategory: SettingCategory = {
       tag: { text: "Beta" },
       items: [
         {
+          key: "qqmusicScrobbleEnabled",
+          type: "switch",
+          binding: { store: "settings", path: "system.system.qqmusicScrobbleEnabled" },
+          defaultValue: true,
+        },
+        {
           key: "neteaseScrobbleEnabled",
           type: "switch",
           binding: { store: "settings", path: "system.system.neteaseScrobbleEnabled" },

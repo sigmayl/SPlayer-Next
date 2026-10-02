@@ -72,6 +72,12 @@ vi.mock("@main/utils/config", () => ({ appName: "SPlayer", getSongCacheDir: () =
 vi.mock("@main/utils/fetchBytes", () => ({}));
 vi.mock("@main/utils/powerBlocker", () => ({}));
 vi.mock("@main/services/lastfm", () => ({ onTrackLoaded: vi.fn() }));
+vi.mock("@main/services/qqmusicScrobble", () => ({
+  onTrackLoaded: vi.fn(),
+  onState: vi.fn(),
+  onEnded: vi.fn(),
+  flush: vi.fn(async () => {}),
+}));
 vi.mock("@main/services/neteaseScrobble", () => ({ onTrackLoaded: vi.fn() }));
 vi.mock("@main/services/songCache", () => ({}));
 vi.mock("@main/services/thumbar", () => ({ getThumbar: () => null }));

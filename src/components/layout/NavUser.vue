@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { useOnlineUser } from "@/composables/useOnlineUser";
+import { useStatusStore } from "@/stores/status";
+import { useDataStore } from "@/stores/data";
+import { useQQMusicStore } from "@/stores/qqmusic";
+import { useSettingsDialog } from "@/settings/useSettingsDialog";
+import { logoutQQMusic } from "@/apis/login/qqmusic";
 import { useUserStore } from "@/stores/user";
 import { dialog } from "@/composables/useDialog";
 import { toast } from "@/composables/useToast";
@@ -9,17 +15,38 @@ import IconLucideUserRound from "~icons/lucide/user-round";
 
 const { t } = useI18n();
 const router = useRouter();
-const user = useUserStore();
+const netease = useUserStore();
+const qqmusic = useQQMusicStore();
+const user = useOnlineUser();
+const status = useStatusStore();
+const data = useDataStore();
+const settingsDialog = useSettingsDialog();
 
 const loginOpen = ref(false);
 const popoverOpen = ref(false);
 
 /** 启动时同步登录状态 */
 onMounted(() => {
-  void user.fetchStatus();
+  void netease.fetchStatus();
 });
 
-const isVip = computed(() => !!user.profile?.vipType && user.profile.vipType !== 0);
+const isVip = computed(() =>
+  status.onlinePlatform === "qqmusic"
+    ? !!qqmusic.profile?.isVip
+    : !!netease.profile?.vipType && netease.profile.vipType !== 0,
+);
+const level = computed(() => (status.onlinePlatform === "netease" ? netease.level : undefined));
+const signature = computed(() =>
+  status.onlinePlatform === "netease" ? netease.profile?.signature : undefined,
+);
+
+watch(
+  () => status.onlinePlatform,
+  () => {
+    popoverOpen.value = false;
+    loginOpen.value = false;
+  },
+);
 
 /** 收藏计数 */
 const stats = computed(() => [
@@ -28,25 +55,32 @@ const stats = computed(() => [
     label: t("collection.playlist"),
     icon: markRaw(IconLucideListMusic),
     value:
-      (user.subcount.createdPlaylistCount || 0) + (user.subcount.subPlaylistCount || 0) ||
-      user.playlists.length,
+      status.onlinePlatform === "netease"
+        ? (netease.subcount.createdPlaylistCount || 0) + (netease.subcount.subPlaylistCount || 0) ||
+          netease.playlists.length
+        : qqmusic.playlists.length + qqmusic.subscribedPlaylists.length,
   },
   {
     key: "album" as const,
     label: t("collection.album"),
     icon: markRaw(IconLucideDisc3),
-    value: user.albums.length,
+    value: user.value.albums.length,
   },
   {
     key: "artist" as const,
     label: t("artist.label"),
     icon: markRaw(IconLucideUserRound),
-    value: user.subcount.artistCount ?? user.artists.length,
+    value:
+      status.onlinePlatform === "netease"
+        ? (netease.subcount.artistCount ?? netease.artists.length)
+        : qqmusic.artists.length,
   },
 ]);
 
 const onTriggerClick = (): void => {
-  if (!user.isLoggedIn) loginOpen.value = true;
+  if (user.value.isLoggedIn) return;
+  if (status.onlinePlatform === "qqmusic") settingsDialog.show("other", "qmAccount");
+  else loginOpen.value = true;
 };
 
 const handleStatClick = (key: "playlist" | "album" | "artist"): void => {
@@ -56,13 +90,19 @@ const handleStatClick = (key: "playlist" | "album" | "artist"): void => {
 
 const handleLogout = async (): Promise<void> => {
   popoverOpen.value = false;
+  const platform = status.onlinePlatform;
   const ok = await dialog.confirm({
     title: t("login.logoutConfirmTitle"),
     content: t("login.logoutConfirmDesc"),
     type: "warning",
   });
   if (!ok) return;
-  await user.logout();
+  if (platform === "qqmusic") {
+    await logoutQQMusic();
+    data.clearPlatformProfile("qqmusic");
+  } else {
+    await netease.logout();
+  }
   toast.success(t("login.logoutDone"));
 };
 </script>
@@ -120,20 +160,17 @@ const handleLogout = async (): Promise<void> => {
       <span class="w-full text-sm font-semibold text-on-surface text-center truncate">
         {{ user.profile?.nickname || t("login.unknownUser") }}
       </span>
-      <div v-if="user.level !== undefined || isVip" class="flex items-center gap-1.5">
+      <div v-if="level !== undefined || isVip" class="flex items-center gap-1.5">
         <span
-          v-if="user.level !== undefined"
+          v-if="level !== undefined"
           class="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none bg-amber-500/15 text-amber-600 dark:text-amber-400 tabular-nums"
         >
-          Lv.{{ user.level }}
+          Lv.{{ level }}
         </span>
         <img v-if="isVip" :src="vipImg" alt="VIP" class="h-4 shrink-0" />
       </div>
-      <span
-        v-if="user.profile?.signature"
-        class="text-xs text-on-surface-variant text-center line-clamp-2"
-      >
-        {{ user.profile.signature }}
+      <span v-if="signature" class="text-xs text-on-surface-variant text-center line-clamp-2">
+        {{ signature }}
       </span>
       <SDivider class="w-full" />
       <!-- 收藏计数 -->

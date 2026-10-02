@@ -5,7 +5,7 @@ import type { PlaybackContext, Track } from "@shared/types/player";
 import type { ContentScope } from "@/types/collection";
 import type { DropdownMenuItem } from "@/components/ui/SDropdownMenu.vue";
 import { useLibraryStore } from "@/stores/library";
-import { useUserStore } from "@/stores/user";
+import { useOnlineUser } from "@/composables/useOnlineUser";
 import { useStatusStore } from "@/stores/status";
 import SongList from "@/components/list/SongList.vue";
 import * as player from "@/core/player";
@@ -14,7 +14,7 @@ import IconLucideRefreshCw from "~icons/lucide/refresh-cw";
 
 const { t } = useI18n();
 const library = useLibraryStore();
-const user = useUserStore();
+const user = useOnlineUser();
 const status = useStatusStore();
 
 /** 当前 tab */
@@ -42,17 +42,17 @@ const localTracks = computed<Track[]>(() => {
 });
 
 watch(
-  () => [tab.value, user.isLoggedIn, user.likedPlaylistId] as const,
+  () => [tab.value, user.value.isLoggedIn, user.value.likedPlaylistId] as const,
   ([nextTab, loggedIn, plId]) => {
     if (nextTab !== "online" || !loggedIn || !plId) return;
-    user.ensureLikedPlaylist();
+    user.value.ensureLikedPlaylist();
   },
   { immediate: true },
 );
 
 /** 当前 tab 的曲目 */
 const currentTracks = computed<Track[]>(() =>
-  tab.value === "local" ? localTracks.value : user.likedPlaylistTracks,
+  tab.value === "local" ? localTracks.value : user.value.likedPlaylistTracks,
 );
 
 const playbackContext = computed<PlaybackContext | undefined>(() => {
@@ -63,10 +63,10 @@ const playbackContext = computed<PlaybackContext | undefined>(() => {
       originName: t("liked.title"),
     };
   }
-  if (!user.likedPlaylistId) return undefined;
+  if (!user.value.likedPlaylistId) return undefined;
   return {
-    provider: "netease",
-    originId: user.likedPlaylistId,
+    provider: status.onlinePlatform,
+    originId: user.value.likedPlaylistId,
     originType: "playlist",
     originName: t("liked.title"),
   };
@@ -103,7 +103,7 @@ const moreMenuItems = computed<DropdownMenuItem[]>(() => {
 
 const handleMoreMenu = (key: string): void => {
   if (key === "refresh") {
-    user.ensureLikedPlaylist(true);
+    user.value.ensureLikedPlaylist(true);
   } else if (key === "batch") {
     songListRef.value?.enterBatch();
   }
@@ -212,7 +212,7 @@ const handleMoreMenu = (key: string): void => {
           ref="songListRef"
           :items="user.likedPlaylistTracks"
           :search-query="searchQuery"
-          source="netease"
+          :source="status.onlinePlatform"
           :collection-id="user.likedPlaylistId ?? undefined"
           :playback-context="playbackContext"
           collection-type="playlist"

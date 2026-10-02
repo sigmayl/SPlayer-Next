@@ -25,3 +25,6 @@ export interface PlatformProfile {
   isVip: boolean;
   vipLevel?: number;
 }
+
+/** 支持账号内容与收藏管理的在线平台 */
+export type OnlinePlatform = Extract<Platform, "netease" | "qqmusic">;

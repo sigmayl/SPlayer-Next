@@ -1,100 +1,67 @@
-/**
- * 歌单详情
- * 使用 c.y.qq.com 的 GET 接口（不走 musicu.fcg）
- * 端点：https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg
- *
- * params:
- * - id  disstid（歌单 ID，必填）
- */
-
-import { QM_HEADERS, formatSingerName } from "../core/config";
+import { qmRequest, getQQMusicCookies } from "../core/request";
+import { formatSingerName } from "../core/config";
 import type { QMModule } from "../core/types";
+import type { QMSong } from "@shared/types/qqmusic";
 
-interface CdSongItem {
-  songid?: number;
-  songmid?: string;
-  songname?: string;
-  interval?: number;
-  singer?: Array<{ name?: string; mid?: string }>;
-  albumname?: string;
-  albummid?: string;
-  strMediaMid?: string;
-  pay?: {
-    payalbum?: number;
-    payplay?: number;
-  };
-  size128?: number;
-  size320?: number;
-  sizeape?: number;
-  sizeflac?: number;
-  sizeogg?: number;
-}
-
-interface CdListResp {
-  code?: number;
-  cdlist?: Array<{
-    disstid?: string | number;
-    dissname?: string;
+interface PlaylistResponse {
+  code: number;
+  dirinfo: {
+    id: string | number;
+    title: string;
     desc?: string;
-    nickname?: string;
-    logo?: string;
-    visitnum?: number;
-    songnum?: number;
-    songlist?: CdSongItem[];
+    picurl?: string;
+    host_nick?: string;
+  };
+  total_song_num: number;
+  songlist: Array<{
+    id: number;
+    mid: string;
+    title: string;
+    interval: number;
+    singer?: QMSong["artists"];
+    album?: { mid?: string; name?: string };
+    file?: Record<string, string | number>;
+    pay?: QMSong["pay"];
   }>;
 }
 
-const SONGLIST_URL =
-  "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysonglist=0&platform=yqq&needNewCode=0";
-
-const songList: QMModule = async (params) => {
-  const { id } = params;
-
-  const url = `${SONGLIST_URL}&disstid=${encodeURIComponent(String(id ?? ""))}`;
-  const res = await fetch(url, {
-    headers: { ...QM_HEADERS, Referer: "https://y.qq.com/" },
-    signal: AbortSignal.timeout(8000),
+/** 手机端歌单详情，允许游客读取公开歌单 */
+const songList: QMModule = async ({ id, offset = 0, limit = 100 }) => {
+  const data = await qmRequest<PlaylistResponse>("music.srfDissInfo.DissInfo", "CgiGetDiss", {
+    disstid: Number(id),
+    song_begin: Number(offset),
+    song_num: Number(limit),
+    onlysonglist: 0,
+    userinfo: 1,
+    orderlist: 1,
+    pic_dpi: 800,
+    ...(getQQMusicCookies().euin ? { enc_host_uin: getQQMusicCookies().euin } : {}),
   });
-  if (!res.ok) throw new Error(`QM 歌单请求失败: HTTP ${res.status}`);
-  const text = await res.text();
-  const json = text
-    .trim()
-    .replace(/^jsonCallback\s*\(/, "")
-    .replace(/\)\s*;?$/, "");
-  const data = JSON.parse(json) as CdListResp;
-
-  const cd = data.cdlist?.[0];
-  if (!cd) return { code: 404, message: "歌单不存在" };
-
-  const songs = (cd.songlist ?? []).map((item) => ({
-    id: String(item.songid ?? ""),
-    mid: item.songmid ?? "",
-    name: item.songname ?? "",
-    artist: formatSingerName(item.singer),
-    artists: item.singer ?? [],
-    album: item.albumname ?? "",
-    albumMid: item.albummid ?? "",
-    duration: (item.interval ?? 0) * 1000,
-    mediaMid: item.strMediaMid ?? "",
-    pay: item.pay,
-    size128: item.size128 ?? 0,
-    size320: item.size320 ?? 0,
-    sizeApe: item.sizeape ?? 0,
-    sizeFlac: item.sizeflac ?? 0,
-    sizeOgg: item.sizeogg ?? 0,
-  }));
-
+  if (data.code !== 0 || !data.dirinfo || !Array.isArray(data.songlist))
+    throw new Error(`QQ 歌单请求失败: ${data.code}`);
   return {
     code: 200,
-    id: cd.disstid,
-    name: cd.dissname ?? "",
-    description: cd.desc ?? "",
-    creator: cd.nickname ?? "",
-    cover: cd.logo ?? "",
-    playCount: cd.visitnum ?? 0,
-    total: cd.songnum ?? songs.length,
-    songs,
+    id: data.dirinfo.id,
+    name: data.dirinfo.title,
+    description: data.dirinfo.desc,
+    cover: data.dirinfo.picurl,
+    creator: data.dirinfo.host_nick,
+    total: data.total_song_num,
+    songs: data.songlist.map((song): QMSong => ({
+      id: String(song.id),
+      mid: song.mid,
+      name: song.title,
+      artist: formatSingerName(song.singer),
+      artists: song.singer,
+      album: song.album?.name,
+      albumMid: song.album?.mid,
+      duration: song.interval * 1000,
+      mediaMid: String(song.file?.media_mid ?? ""),
+      pay: song.pay,
+      size128: Number(song.file?.size_128mp3 ?? 0),
+      size320: Number(song.file?.size_320mp3 ?? 0),
+      sizeFlac: Number(song.file?.size_flac ?? 0),
+    })),
   };
 };
-
 export default songList;

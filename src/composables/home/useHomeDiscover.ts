@@ -1,5 +1,8 @@
 import type { CoverItem } from "@/types/artist";
-import { useUserStore } from "@/stores/user";
+import { useOnlineUser } from "@/composables/useOnlineUser";
+import { useStatusStore } from "@/stores/status";
+import { qqmusicCall } from "@/apis/qqmusic";
+import type { Playlist } from "@shared/types/player";
 import {
   fetchRecommendPlaylists,
   fetchRadarPlaylists,
@@ -14,6 +17,7 @@ const CACHE_TTL = 30 * 60 * 1000;
 interface DiscoverCache {
   at: number;
   loggedIn: boolean;
+  key: string;
   recommend: CoverItem[];
   radar: CoverItem[];
   artists: CoverItem[];
@@ -38,7 +42,8 @@ const safe = (label: string, task: Promise<CoverItem[]>): Promise<CoverItem[]> =
  */
 export const useHomeDiscover = () => {
   const { t } = useI18n();
-  const user = useUserStore();
+  const user = useOnlineUser();
+  const status = useStatusStore();
 
   /** 推荐歌单 / 专属歌单 */
   const recommendPlaylists = shallowRef<CoverItem[]>([]);
@@ -51,11 +56,11 @@ export const useHomeDiscover = () => {
 
   /** 推荐歌单标题 */
   const recommendTitle = computed(() =>
-    user.isLoggedIn ? t("home.recommend.title") : t("home.recommend.titleGuest"),
+    user.value.isLoggedIn ? t("home.recommend.title") : t("home.recommend.titleGuest"),
   );
   /** 推荐歌单副标题 */
   const recommendSubtitle = computed(() =>
-    user.isLoggedIn ? t("home.recommend.subtitle") : t("home.recommend.subtitleGuest"),
+    user.value.isLoggedIn ? t("home.recommend.subtitle") : t("home.recommend.subtitleGuest"),
   );
 
   /** 用缓存填充各区块 */
@@ -68,8 +73,39 @@ export const useHomeDiscover = () => {
 
   /** 拉取首页推荐内容 */
   const load = async (): Promise<void> => {
-    const loggedIn = user.isLoggedIn;
-    if (cache && cache.loggedIn === loggedIn && Date.now() - cache.at < CACHE_TTL) {
+    const loggedIn = user.value.isLoggedIn;
+    const platform = status.onlinePlatform;
+    const key = `${platform}:${user.value.profile?.userId ?? "guest"}`;
+    if (
+      cache &&
+      cache.key === key &&
+      cache.loggedIn === loggedIn &&
+      Date.now() - cache.at < CACHE_TTL
+    ) {
+      apply(cache);
+      return;
+    }
+    if (platform === "qqmusic") {
+      apply({ at: 0, key, loggedIn, recommend: [], radar: [], artists: [], albums: [] });
+      const playlists = await qqmusicCall<Playlist[]>("recommend_playlists", { limit: 20 }).catch(
+        () => [],
+      );
+      if (key !== `${status.onlinePlatform}:${user.value.profile?.userId ?? "guest"}`) return;
+      cache = {
+        at: Date.now(),
+        key,
+        loggedIn,
+        recommend: playlists.map((item) => ({
+          id: item.id!,
+          title: item.name,
+          cover: item.cover,
+          subtitle: item.owner ?? "",
+          trackCount: item.trackCount ?? 0,
+        })),
+        radar: [],
+        artists: [],
+        albums: [],
+      };
       apply(cache);
       return;
     }
@@ -79,13 +115,14 @@ export const useHomeDiscover = () => {
       safe("artists", fetchArtists()),
       safe("new albums", fetchNewAlbums()),
     ]);
-    cache = { at: Date.now(), loggedIn, recommend, radar, artists: artistList, albums };
+    if (key !== `${status.onlinePlatform}:${user.value.profile?.userId ?? "guest"}`) return;
+    cache = { at: Date.now(), key, loggedIn, recommend, radar, artists: artistList, albums };
     apply(cache);
   };
 
   // 登录态变化
   watch(
-    () => user.isLoggedIn,
+    () => [status.onlinePlatform, user.value.profile?.userId],
     () => {
       void load();
     },

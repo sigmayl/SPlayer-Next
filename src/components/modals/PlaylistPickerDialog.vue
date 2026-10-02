@@ -2,7 +2,7 @@
 import type { Track } from "@shared/types/player";
 import type { ContentScope } from "@/types/collection";
 import { usePlaylistStore } from "@/stores/playlist";
-import { useUserStore } from "@/stores/user";
+import { useOnlineUser } from "@/composables/useOnlineUser";
 import { toast } from "@/composables/useToast";
 import PlaylistCreateDialog from "./PlaylistCreateDialog.vue";
 import IconLucidePlus from "~icons/lucide/plus";
@@ -18,7 +18,8 @@ const emit = defineEmits<{ "update:open": [value: boolean] }>();
 
 const { t } = useI18n();
 const playlistStore = usePlaylistStore();
-const userStore = useUserStore();
+const platform = computed(() => (props.tracks[0]?.source === "qqmusic" ? "qqmusic" : "netease"));
+const userStore = useOnlineUser(platform);
 
 /** 列表项的统一形状 */
 interface PickerEntry {
@@ -39,12 +40,13 @@ const entries = computed<PickerEntry[]>(() => {
     }));
   }
   // 跳过"我喜欢"，红心按钮负责那条路径
-  return userStore.createdPlaylists
+  return userStore.value.createdPlaylists
     .filter(
-      (pl): pl is typeof pl & { id: string } => !!pl.id && pl.id !== userStore.likedPlaylistId,
+      (pl): pl is typeof pl & { id: string } =>
+        !!pl.id && pl.id !== userStore.value.likedPlaylistId,
     )
     .map((pl) => ({
-      id: pl.id,
+      id: pl.id!,
       name: pl.name,
       cover: pl.cover,
       trackCount: pl.trackCount ?? 0,
@@ -67,7 +69,7 @@ const handlePick = async (playlistId: string): Promise<void> => {
       count = await playlistStore.addTracks(playlistId, props.tracks);
     } else {
       const ids = props.tracks.map((track) => track.id);
-      count = await userStore.addTracksToPlaylist(playlistId, ids);
+      count = await userStore.value.addTracksToPlaylist(playlistId, ids);
     }
     if (count > 0) {
       toast.success(t("collection.tracksAdded", { count }));
@@ -128,5 +130,5 @@ const handlePick = async (playlistId: string): Promise<void> => {
       <SButton variant="tertiary" @click="close">{{ t("common.cancel") }}</SButton>
     </template>
   </SDialog>
-  <PlaylistCreateDialog v-model:open="createDialogOpen" :mode="mode" />
+  <PlaylistCreateDialog v-model:open="createDialogOpen" :mode="mode" :platform="platform" />
 </template>

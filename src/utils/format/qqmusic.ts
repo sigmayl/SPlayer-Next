@@ -1,31 +1,8 @@
 import type { AudioQuality, Track, TrackFee } from "@shared/types/player";
 import type { CoverItem } from "@/types/artist";
 
-export interface QMSong {
-  id: string;
-  mid?: string;
-  mediaMid?: string;
-  name: string;
-  artist: string;
-  artists?: Array<{ mid?: string; name?: string }>;
-  album?: string;
-  albumMid?: string;
-  cover?: string;
-  coverOriginal?: string;
-  duration: number;
-  pay?: {
-    payalbum?: number;
-    payplay?: number;
-  };
-  size128?: number;
-  size320?: number;
-  sizeApe?: number;
-  sizeFlac?: number;
-  sizeOgg?: number;
-  sizeHiRes?: number;
-  hiResSampleRate?: number;
-  hiResBitDepth?: number;
-}
+import type { QMSong } from "@shared/types/qqmusic";
+export type { QMSong } from "@shared/types/qqmusic";
 
 export interface QMAlbumItem {
   id: string;
@@ -63,8 +40,9 @@ export const qqArtistCover = (mid: string, size = 300): string =>
  * @returns 付费等级
  */
 const qqTrackFee = (song: QMSong): TrackFee => {
-  if (song.pay?.payalbum === 1) return 4;
-  if (song.pay?.payplay === 1) return 1;
+  if (song.pay?.payalbum === 1 || (song.pay?.pay_month === 0 && (song.pay?.price_album ?? 0) > 0))
+    return 4;
+  if (song.pay?.payplay === 1 || song.pay?.pay_play === 1) return 1;
   return 0;
 };
 

@@ -20,7 +20,14 @@ export const fetchQQMusicPlaylist = async (
 ): Promise<{ playlist: Playlist; tracks: Track[] }> => {
   const body = await qmApi.song_list<PlaylistResponse>({ id });
   if (body.code !== 200) throw new Error(body.message || `QM 歌单请求失败: ${body.code}`);
-  const tracks = qqSongsToTracks(body.songs);
+  const songs = [...(body.songs ?? [])];
+  while (songs.length < (body.total ?? songs.length)) {
+    const page = await qmApi.song_list<PlaylistResponse>({ id, offset: songs.length, limit: 100 });
+    if (page.code !== 200) throw new Error(page.message || "QM 歌单分页失败");
+    if (!page.songs?.length) break;
+    songs.push(...page.songs);
+  }
+  const tracks = qqSongsToTracks(songs);
   return {
     playlist: {
       id: String(body.id ?? id),

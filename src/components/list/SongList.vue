@@ -390,7 +390,7 @@ defineExpose({
                 <span>{{ t("songList.batch.download") }}</span>
               </SButton>
               <SButton
-                v-if="source === 'local' || source === 'netease'"
+                v-if="source === 'local' || source === 'netease' || source === 'qqmusic'"
                 variant="ghost"
                 size="small"
                 :disabled="batch.selectedCount.value === 0"

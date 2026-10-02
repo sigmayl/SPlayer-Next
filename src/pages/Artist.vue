@@ -2,7 +2,7 @@
 import type { PlaybackContext, TrackSource } from "@shared/types/player";
 import type { ArtistProfile, CoverItem } from "@/types/artist";
 import { useSettingsStore } from "@/stores/settings";
-import { useUserStore } from "@/stores/user";
+import { useOnlineUser } from "@/composables/useOnlineUser";
 import { toast } from "@/composables/useToast";
 import { loadArtist as loadArtistService } from "@/services/artistLoader";
 import { fetchArtistSongs } from "@/apis/artist/netease";
@@ -25,7 +25,7 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const { appearance } = useSettingsStore();
-const userStore = useUserStore();
+const userStore = useOnlineUser(() => artist.value?.source);
 
 const tabTransitionName = computed(() => {
   const transition = appearance.routeTransition;
@@ -152,14 +152,16 @@ const handlePlayAll = () => {
   player.playFrom(artist.value.tracks, 0, playbackContext.value);
 };
 
-/** 收藏歌手仅支持网易云 */
-const canSubscribeArtist = computed(() => artist.value?.source === "netease");
+/** 收藏歌手支持网易云与 QQ 音乐 */
+const canSubscribeArtist = computed(
+  () => artist.value?.source === "netease" || artist.value?.source === "qqmusic",
+);
 
 /** 当前歌手是否已收藏（依据用户收藏歌手列表） */
 const isArtistSubscribed = computed(() => {
   const current = artist.value;
-  if (!current || current.source !== "netease") return false;
-  return userStore.artists.some((item) => String(item.id) === String(current.id));
+  if (!current || (current.source !== "netease" && current.source !== "qqmusic")) return false;
+  return userStore.value.artists.some((item) => String(item.id) === String(current.id));
 });
 
 /** 收藏操作进行中 */
@@ -167,10 +169,15 @@ const artistSubBusy = ref(false);
 
 const handleToggleSubscribe = async (): Promise<void> => {
   const current = artist.value;
-  if (!current || current.source !== "netease" || artistSubBusy.value) return;
+  if (
+    !current ||
+    (current.source !== "netease" && current.source !== "qqmusic") ||
+    artistSubBusy.value
+  )
+    return;
   artistSubBusy.value = true;
   try {
-    await userStore.toggleArtistSubscribe(current.id, !isArtistSubscribed.value);
+    await userStore.value.toggleArtistSubscribe(current.id, !isArtistSubscribed.value);
   } catch (err) {
     toast.error(err instanceof Error && err.message ? err.message : t("liked.toast.failed"));
   } finally {

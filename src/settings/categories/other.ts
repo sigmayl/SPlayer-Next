@@ -1,4 +1,5 @@
 import type { SettingCategory } from "@/types/settings-schema";
+import OnlinePlatformConfig from "@/components/settings/custom/OnlinePlatformConfig.vue";
 import PlatformAccount from "@/components/settings/custom/PlatformAccount.vue";
 import SkipKeywordsConfig from "@/components/settings/custom/SkipKeywordsConfig.vue";
 import IconLucideSettings from "~icons/lucide/settings";
@@ -43,6 +44,11 @@ const otherCategory: SettingCategory = {
       id: "platformConfig",
       tag: { text: "Beta" },
       items: [
+        {
+          key: "onlinePlatform",
+          type: "custom",
+          component: OnlinePlatformConfig,
+        },
         {
           key: "kugouLoginVersion",
           type: "select",

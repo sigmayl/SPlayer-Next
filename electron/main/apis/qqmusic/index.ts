@@ -1,17 +1,12 @@
-/**
- * QM 主进程服务
- *
- * 与 netease 不同之处：
- * - 无持久化 session（uid/sid 是匿名态，内存缓存 1h 足够）
- * - 无 cookie 登录态（播放 URL 由插件实现，不走账号）
- * - 走 fetch 原生 HTTP，无加密 body（靠 UA + comm 伪装）
- *
- * 统一入口：callQQMusic(name, params)
- */
+/** QQ 音乐主进程服务，缓存按会话隔离 */
 
 import { createHash } from "node:crypto";
 import { modules } from "./modules";
-import { clearQQMusicCookies, mergeQQMusicCookies } from "./core/request";
+import {
+  clearQQMusicCookies,
+  mergeQQMusicCookies,
+  getQQMusicSessionGeneration,
+} from "./core/request";
 import type { QMParams } from "./core/types";
 
 export { clearQQMusicCookies, mergeQQMusicCookies };
@@ -29,6 +24,22 @@ const cache = new Map<string, CacheEntry>();
 
 /** 不缓存的实时接口 */
 const NON_CACHEABLE: ReadonlySet<string> = new Set([
+  "user_playlists",
+  "song_list",
+  "user_albums",
+  "user_artists",
+  "user_subscribed_playlists",
+  "playlist_create",
+  "playlist_delete",
+  "playlist_update",
+  "playlist_tracks",
+  "playlist_subscribe",
+  "daily_recommend",
+  "album_subscribe",
+  "artist_subscribe",
+  "recent_play",
+  "report_consume",
+  "report_free_vip",
   "user_detail",
   "song_url",
   "comment",
@@ -78,11 +89,12 @@ export const callQQMusic = async (name: string, params: QMParams = {}): Promise<
 
   if (NON_CACHEABLE.has(name)) return fn(params);
 
-  const key = `${name}|${hashParams(params)}`;
+  const generation = getQQMusicSessionGeneration();
+  const key = `${generation}|${name}|${hashParams(params)}`;
   const hit = cacheGet(key);
   if (hit !== undefined) return hit;
 
   const value = await fn(params);
-  cacheSet(key, value);
+  if (generation === getQQMusicSessionGeneration()) cacheSet(key, value);
   return value;
 };

@@ -3,6 +3,7 @@ import type { PlaybackContext, Track, TrackSource } from "@shared/types/player";
 import type { CollectionType } from "@/types/collection";
 import { usePlaylistStore } from "@/stores/playlist";
 import { useLibraryStore } from "@/stores/library";
+import { useOnlineUser } from "@/composables/useOnlineUser";
 import { useUserStore } from "@/stores/user";
 import { toast } from "@/composables/useToast";
 import { useDownload } from "@/composables/useDownload";
@@ -34,6 +35,7 @@ export const useMultiSelect = (items: Ref<Track[]>, options: MultiSelectOptions)
   const playlistStore = usePlaylistStore();
   const libraryStore = useLibraryStore();
   const userStore = useUserStore();
+  const onlineUser = useOnlineUser(options.source);
   const { enqueueMany } = useDownload();
 
   const active = ref(false);
@@ -89,7 +91,11 @@ export const useMultiSelect = (items: Ref<Track[]>, options: MultiSelectOptions)
   };
 
   const canRemove = computed(
-    () => options.collectionType.value === "playlist" && options.canRemove?.value !== false,
+    () =>
+      options.collectionType.value === "playlist" &&
+      options.canRemove?.value !== false &&
+      (options.source.value !== "qqmusic" ||
+        onlineUser.value.createdPlaylists.some((item) => item.id === options.collectionId.value)),
   );
   const canRemoveFromCloud = computed(() => options.collectionType.value === "cloud");
 
@@ -129,8 +135,8 @@ export const useMultiSelect = (items: Ref<Track[]>, options: MultiSelectOptions)
       } else if (options.collectionId.value) {
         if (options.source.value === "local") {
           await playlistStore.removeTracks(options.collectionId.value, ids);
-        } else if (options.source.value === "netease") {
-          await userStore.removeTracksFromPlaylist(options.collectionId.value, ids);
+        } else if (options.source.value === "netease" || options.source.value === "qqmusic") {
+          await onlineUser.value.removeTracksFromPlaylist(options.collectionId.value, ids);
         }
       }
       deleteConfirmOpen.value = false;

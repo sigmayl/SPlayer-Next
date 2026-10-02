@@ -1,5 +1,6 @@
 import type { Track } from "@shared/types/player";
-import { useUserStore } from "@/stores/user";
+import { useOnlineUser } from "@/composables/useOnlineUser";
+import { useStatusStore } from "@/stores/status";
 import { useDataStore } from "@/stores/data";
 import { toast } from "@/composables/useToast";
 import * as player from "@/core/player";
@@ -50,7 +51,8 @@ const toSource = (kind: HeroKind, tracks: Track[]): HeroSource | null =>
  */
 export const useDailyRecommend = () => {
   const { t } = useI18n();
-  const user = useUserStore();
+  const user = useOnlineUser();
+  const status = useStatusStore();
   const data = useDataStore();
 
   const slide = shallowRef<HeroSource | null>(null);
@@ -84,7 +86,7 @@ export const useDailyRecommend = () => {
   const tryBuild = async (kind: HeroKind): Promise<HeroSource | null> => {
     try {
       if (kind === "daily") return toSource("daily", await data.ensureDailyRecommend());
-      if (kind === "liked") return toSource("liked", [...user.likedPlaylistTracks]);
+      if (kind === "liked") return toSource("liked", [...user.value.likedPlaylistTracks]);
       const res = await window.api.library.getRandomTracks(LOCAL_RANDOM_LIMIT);
       return toSource("local", res.success ? (res.data ?? []) : []);
     } catch (error) {
@@ -96,12 +98,16 @@ export const useDailyRecommend = () => {
   /** 随机来源展示，无内容则顺延下一种 */
   const load = async (): Promise<void> => {
     loading.value = true;
+    const platform = status.onlinePlatform;
+    const uid = user.value.profile?.userId;
+    slide.value = null;
     const kinds: HeroKind[] = ["local"];
-    if (user.isLoggedIn) kinds.push("daily");
-    if (user.likedPlaylistTracks.length > 0) kinds.push("liked");
+    if (user.value.isLoggedIn) kinds.push("daily");
+    if (user.value.likedPlaylistTracks.length > 0) kinds.push("liked");
     const start = randomIndex(kinds.length);
     for (let offset = 0; offset < kinds.length; offset++) {
       const built = await tryBuild(kinds[(start + offset) % kinds.length]);
+      if (platform !== status.onlinePlatform || uid !== user.value.profile?.userId) return;
       if (built) {
         slide.value = built;
         break;
@@ -117,7 +123,12 @@ export const useDailyRecommend = () => {
       toast.warning(t("home.hero.empty"));
       return;
     }
-    await player.playFrom(current.tracks, current.featuredIndex);
+    await player.playFrom(current.tracks, current.featuredIndex, {
+      provider: current.tracks[0].source,
+      originType: "page",
+      originId: current.kind,
+      originName: hero.value?.title,
+    });
   };
 
   /** 添加到队列：整组插入当前曲目之后 */
@@ -127,9 +138,21 @@ export const useDailyRecommend = () => {
       toast.warning(t("home.hero.empty"));
       return;
     }
-    const added = player.insertManyToQueue(current.tracks);
+    const added = player.insertManyToQueue(current.tracks, "next", {
+      provider: current.tracks[0].source,
+      originType: "page",
+      originId: current.kind,
+      originName: hero.value?.title,
+    });
     if (added > 0) toast.success(t("home.hero.added", { count: added }));
   };
+
+  watch(
+    () => [status.onlinePlatform, user.value.profile?.userId],
+    () => {
+      void load();
+    },
+  );
 
   return { hero, loading, previewTracks, playAll, addToQueue, load };
 };

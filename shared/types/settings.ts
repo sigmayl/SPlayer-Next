@@ -491,7 +491,9 @@ export interface SystemConfig {
     kugouLoginVersion: KugouLoginVersion;
     /** 网络代理配置 */
     networkProxy: NetworkProxySettings;
-    /** 听歌打卡开关 */
+    /** QQ 音乐播放结算上报 */
+    qqmusicScrobbleEnabled: boolean;
+    /** 网易云听歌打卡开关 */
     neteaseScrobbleEnabled: boolean;
     /** 听歌打卡上报方式 */
     neteaseScrobbleMode: NeteaseScrobbleMode;

@@ -2,6 +2,9 @@
  * QM 模块注册表
  */
 
+import * as library from "./library";
+import * as account from "./account";
+
 import type { QMModule } from "../core/types";
 
 import hot_search from "./hot_search";
@@ -19,6 +22,8 @@ import comment from "./comment";
 import { login_qr_key, login_qr_check } from "./login_qr";
 
 export const modules: Record<string, QMModule> = {
+  ...account,
+  ...library,
   hot_search,
   leaderboard,
   lyric,

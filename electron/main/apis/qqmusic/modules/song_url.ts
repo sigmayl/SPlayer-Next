@@ -156,53 +156,58 @@ const songUrl: QMModule = async (params) => {
     loggedIn: hasCredential,
   });
 
-  try {
-    let matched = await requestUrl();
-    if (!matched && hasCredential) {
-      coreLog.warn("[qm-song-url] 携带凭据未命中播放直链，尝试刷新凭据重试");
-      const refreshed = await refreshQMCredential();
-      if (refreshed) {
-        matched = await requestUrl();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) {
+      if (!hasCredential) break;
+      coreLog.warn("[qm-song-url] 直链与免费听均未命中，刷新凭据后重试解析");
+      try {
+        if (!(await refreshQMCredential())) break;
+      } catch (error) {
+        coreLog.warn("[qm-song-url] 凭据刷新失败", error);
+        break;
       }
     }
 
-    if (matched) {
-      coreLog.info(
-        `[qm-song-url] 成功命中直链: ${mid} -> ${matched.cand.label} (${matched.cand.level})`,
-      );
-
-      return {
-        code: 200,
-        data: [
-          {
-            id: mid,
-            url: matched.url,
-            level: matched.cand.level,
-            format: matched.cand.ext.replace(".", ""),
-            isFallback: matched.cand.level !== targetLevel,
-          },
-        ],
-      };
-    }
-  } catch (err) {
-    coreLog.error("[qm-song-url] 直链解析请求异常:", err);
-  }
-
-  if (store.get("system.qqmusicFreeModeEnabled")) {
     try {
-      let songId = Number(params.songId);
-      let freeMediaMid = mediaMid;
-      if (!Number.isSafeInteger(songId) || songId <= 0 || !freeMediaMid) {
-        const info = await qmRequest<{
-          track_info?: { id: number; file?: { media_mid?: string } };
-        }>("music.pf_song_detail_svr", "get_song_detail_yqq", { song_type: 0, song_mid: mid });
-        songId = Number(info.track_info?.id);
-        freeMediaMid = info.track_info?.file?.media_mid ?? "";
+      const matched = await requestUrl();
+      if (matched) {
+        coreLog.info(
+          `[qm-song-url] 成功命中直链: ${mid} -> ${matched.cand.label} (${matched.cand.level})`,
+        );
+
+        return {
+          code: 200,
+          data: [
+            {
+              id: mid,
+              url: matched.url,
+              level: matched.cand.level,
+              format: matched.cand.ext.replace(".", ""),
+              isFallback: matched.cand.level !== targetLevel,
+            },
+          ],
+        };
       }
-      const url = await obtainFreeModeUrl(songId, mid, freeMediaMid);
-      return { code: 200, data: [{ id: mid, url, freeMode: true }] };
     } catch (error) {
-      coreLog.warn("[qm-song-url] 免费听解析失败", error);
+      coreLog.error("[qm-song-url] 直链解析请求异常:", error);
+    }
+
+    if (store.get("system.qqmusicFreeModeEnabled")) {
+      try {
+        let songId = Number(params.songId);
+        let freeMediaMid = mediaMid;
+        if (!Number.isSafeInteger(songId) || songId <= 0 || !freeMediaMid) {
+          const info = await qmRequest<{
+            track_info?: { id: number; file?: { media_mid?: string } };
+          }>("music.pf_song_detail_svr", "get_song_detail_yqq", { song_type: 0, song_mid: mid });
+          songId = Number(info.track_info?.id);
+          freeMediaMid = info.track_info?.file?.media_mid ?? "";
+        }
+        const url = await obtainFreeModeUrl(songId, mid, freeMediaMid);
+        return { code: 200, data: [{ id: mid, url, freeMode: true }] };
+      } catch (error) {
+        coreLog.warn("[qm-song-url] 免费听解析失败", error);
+      }
     }
   }
 

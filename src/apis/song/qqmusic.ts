@@ -32,6 +32,7 @@ export const resolveQQMusicUrl = async (
   try {
     const body = await qqmusicCall<SongUrlResponse>("song_url", {
       mid: track.id,
+      songId: track.extId,
       mediaMid: track.mediaId,
       level: songLevel,
     });

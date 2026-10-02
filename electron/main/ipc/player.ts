@@ -15,6 +15,7 @@ import { toMs } from "@main/utils/time";
 import * as mediaService from "@main/services/media";
 import * as nowPlaying from "@main/services/nowPlaying";
 import * as lastfm from "@main/services/lastfm";
+import * as qqmusicFreeMode from "@main/services/qqmusicFreeMode";
 import * as qqmusicScrobble from "@main/services/qqmusicScrobble";
 import * as neteaseScrobble from "@main/services/neteaseScrobble";
 import { fetchBytes } from "@main/utils/fetchBytes";
@@ -149,6 +150,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         lastfm.onState(state === "playing");
         neteaseScrobble.onState(state === "playing");
         qqmusicScrobble.onState(state === "playing");
+        qqmusicFreeMode.onState(state === "playing");
         const statusEvent = {
           type: "status",
           data: {
@@ -171,6 +173,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         lastfm.onEnded();
         neteaseScrobble.onEnded();
         qqmusicScrobble.onEnded();
+        qqmusicFreeMode.onEnded();
         setTaskbarProgress(-1);
         break;
       }
@@ -180,6 +183,7 @@ const registerNativeEvents = (inst: InstanceType<AudioEngineModule["AudioPlayer"
         mediaService.setPlayState({ status: "Paused" });
         neteaseScrobble.onState(false);
         qqmusicScrobble.onState(false);
+        qqmusicFreeMode.onState(false);
         setTaskbarProgress(-1);
         break;
       }
@@ -319,6 +323,7 @@ const completeTrackLoad = (
   });
   neteaseScrobble.onTrackLoaded(authoritative, options.context, durationMs, autoPlay);
   qqmusicScrobble.onTrackLoaded(authoritative, options.context, durationMs, autoPlay);
+  qqmusicFreeMode.onTrackLoaded(authoritative, source, autoPlay);
   if (coverFetchUrl) {
     void fetchBytes(coverFetchUrl).then((buf) => {
       if (!buf || seq !== loadSeq) return;
@@ -590,6 +595,7 @@ export const registerPlayerIpc = (): void => {
       activeCueRange = null;
       setCurrentTransitionRange();
       qqmusicScrobble.onEnded();
+      qqmusicFreeMode.onEnded();
       getPlayer().stop();
       return { success: true };
     } catch (error) {
@@ -1005,6 +1011,7 @@ export const registerPlayerIpc = (): void => {
   app.on("before-quit", (event) => {
     if (!reportFlushed) {
       event.preventDefault();
+      qqmusicFreeMode.onEnded();
       void qqmusicScrobble.flush().finally(() => {
         reportFlushed = true;
         app.quit();

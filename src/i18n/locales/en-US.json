@@ -1809,6 +1809,10 @@
       "standard": "Standard",
       "concept": "Concept"
     },
+    "qqmusicFreeModeEnabled": {
+      "label": "QQ Music free listening",
+      "description": "Use free listening when normal URL resolution fails. Automatically renew expired benefits and report listening records. Requires QQ Music login."
+    },
     "qqmusicScrobbleEnabled": {
       "label": "QQ Music playback reporting",
       "description": "Report actual listening time and source when a song ends or changes."

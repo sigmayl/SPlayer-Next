@@ -50,6 +50,12 @@ const otherCategory: SettingCategory = {
           component: OnlinePlatformConfig,
         },
         {
+          key: "qqmusicFreeModeEnabled",
+          type: "switch",
+          binding: { store: "settings", path: "system.system.qqmusicFreeModeEnabled" },
+          defaultValue: false,
+        },
+        {
           key: "kugouLoginVersion",
           type: "select",
           binding: { store: "settings", path: "system.system.kugouLoginVersion" },

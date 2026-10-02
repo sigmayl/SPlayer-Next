@@ -1797,6 +1797,10 @@
       "standard": "标准版",
       "concept": "概念版"
     },
+    "qqmusicFreeModeEnabled": {
+      "label": "QQ 音乐免费听",
+      "description": "普通播放链接获取失败时尝试免费听，自动续领到期权益并上报收听记录，需登录 QQ 音乐。"
+    },
     "qqmusicScrobbleEnabled": {
       "label": "QQ 音乐播放上报",
       "description": "播放结束或切歌时，上报实际收听时长与播放来源。"

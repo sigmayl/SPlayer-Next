@@ -493,6 +493,8 @@ export interface SystemConfig {
     networkProxy: NetworkProxySettings;
     /** QQ 音乐播放结算上报 */
     qqmusicScrobbleEnabled: boolean;
+    /** QQ 普通解析失败时使用免费听授权 */
+    qqmusicFreeModeEnabled: boolean;
     /** 网易云听歌打卡开关 */
     neteaseScrobbleEnabled: boolean;
     /** 听歌打卡上报方式 */

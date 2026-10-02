@@ -3,6 +3,9 @@
  * 支持微信扫码与 QQ 扫码凭证的直链解析及多音质降级
  */
 
+import { obtainFreeModeUrl } from "@main/services/qqmusicFreeMode";
+import { store } from "@main/store";
+import { qmRequest } from "../core/request";
 import { randomUUID } from "node:crypto";
 import { getQQMusicCookies, getQQMusicUin, refreshQMCredential } from "../core/request";
 import { sessionToCookieHeader } from "../core/credential";
@@ -183,6 +186,24 @@ const songUrl: QMModule = async (params) => {
     }
   } catch (err) {
     coreLog.error("[qm-song-url] 直链解析请求异常:", err);
+  }
+
+  if (store.get("system.qqmusicFreeModeEnabled")) {
+    try {
+      let songId = Number(params.songId);
+      let freeMediaMid = mediaMid;
+      if (!Number.isSafeInteger(songId) || songId <= 0 || !freeMediaMid) {
+        const info = await qmRequest<{
+          track_info?: { id: number; file?: { media_mid?: string } };
+        }>("music.pf_song_detail_svr", "get_song_detail_yqq", { song_type: 0, song_mid: mid });
+        songId = Number(info.track_info?.id);
+        freeMediaMid = info.track_info?.file?.media_mid ?? "";
+      }
+      const url = await obtainFreeModeUrl(songId, mid, freeMediaMid);
+      return { code: 200, data: [{ id: mid, url, freeMode: true }] };
+    } catch (error) {
+      coreLog.warn("[qm-song-url] 免费听解析失败", error);
+    }
   }
 
   return {

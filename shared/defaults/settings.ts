@@ -166,6 +166,7 @@ export const defaultSystemConfig: SystemConfig = {
       port: 7890,
     },
     qqmusicScrobbleEnabled: true,
+    qqmusicFreeModeEnabled: false,
     neteaseScrobbleEnabled: false,
     neteaseScrobbleMode: "ncbl",
     registerOrpheusProtocol: false,
